@@ -44,7 +44,7 @@ rossmann-project/
 - JOIN across sales and store tables
 
 ## Power BI Dashboard
-![Dashboard](charts/dashboard.png)
+![Dashboard](Charts/dashboard.png)
 
 ## How to Run
 1. Clone this repository
