@@ -19,6 +19,8 @@ performance benchmarks to support business decisions.
 - Jupyter Notebook
 
 ## Project Structure
+
+```
 rossmann-project/
 ├── data/
 │   ├── raw/
@@ -27,6 +29,9 @@ rossmann-project/
 │   ├── 01_cleaning.ipynb
 │   └── 02_eda.ipynb
 └── charts/
+
+```
+
 
 ## Key Findings
 1. **Store 817** is the top performer with €21.8K average daily sales — 3x the overall average
