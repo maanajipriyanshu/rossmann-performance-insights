@@ -9,7 +9,7 @@ performance benchmarks to support business decisions.
 ## Dataset
 - Source: Rossmann Store Sales (Kaggle)
 - Records: 844,338 sales transactions
-- Period: January 2013 – July 2015
+- Period: January 2013 - July 2015
 - Stores: 1,115 German retail stores
 
 ## Tech Stack
