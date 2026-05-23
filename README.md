@@ -54,4 +54,4 @@ rossmann-project/
 ## How to Run
 1. Clone this repository
 2. Install requirements: `pip install pandas numpy matplotlib seaborn sqlalchemy psycopg2-binary`
-3. Run notebooks in order: 01_cleaning → 02_eda
+3. Run notebooks in order: 01_cleaning -> 02_eda
