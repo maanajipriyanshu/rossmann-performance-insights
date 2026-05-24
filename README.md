@@ -19,6 +19,8 @@ performance benchmarks to support business decisions.
 - Jupyter Notebook
 
 ## Project Structure
+
+```
 rossmann-project/
 ├── data/
 │   ├── raw/
@@ -28,13 +30,24 @@ rossmann-project/
 │   └── 02_eda.ipynb
 └── charts/
 
+```
+
+
 ## Key Findings
+<<<<<<< HEAD
 1. **Store 817** is the top performer with €21.8K average daily sales, 3x the overall average
+=======
+1. **Store 817** is the top performer with €21.8K average daily sales - 3x the overall average
+>>>>>>> ec92d59df1030763eb46f0ebaf04aeb99f66b7be
 2. **Promotions increase sales by 38%** - from €5.9K to €8.2K average daily sales
 3. **December sales spike 49%** above yearly average - strong Christmas seasonality
 4. **Store Type b** generates 48% higher sales than other store types
 5. **Competition distance shows no negative impact** - top stores have competition within 500m
+<<<<<<< HEAD
 6. **Sunday and Monday** are peak sales days. Saturday is lowest
+=======
+6. **Sunday and Monday** are peak sales days - Saturday is lowest
+>>>>>>> ec92d59df1030763eb46f0ebaf04aeb99f66b7be
 
 ## SQL Queries
 There are 8 PostgreSQL queries including:
@@ -77,4 +90,4 @@ or loyalty campaigns during this period could recover lost revenue.
 ## How to Run
 1. Clone this repository
 2. Install requirements: `pip install pandas numpy matplotlib seaborn sqlalchemy psycopg2-binary`
-3. Run notebooks in order: 01_cleaning → 02_eda
+3. Run notebooks in order: 01_cleaning -> 02_eda
