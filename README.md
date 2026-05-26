@@ -58,51 +58,37 @@ ORDER BY Sales_Year, Sales_Month;
 ```
 
 
-Additional SQL queries were developed to extract:
+**Additional SQL queries were developed to extract:**
 
 Performance comparisons between store types.
-
 Revenue differences on days with promo campaigns versus regular days.
-
 Identification of top-performing individual store IDs by annual growth.
 
-Power BI Dashboard Metrics
+**Power BI Dashboard Metrics**
 I exported the processed datasets into Power BI to create an executive performance view. The dashboard focuses on standard retail Key Performance Indicators:
-
 Core Financials: Total Sales (€5.87bn macro portfolio total) and Average Daily Store Sales (€6.96K baseline).
-
 Trend Analysis: Line charts plotting monthly sales velocity across different fiscal years.
-
 Operational Impact: Visual matrices comparing performance on promotional days versus standard operational days.
-
 Store Segmentation: Tree maps dividing market share and revenue distribution across Store Types A, B, C, and D.
 
-Key Findings and Business Insights
+**Key Findings and Business Insights**
 Clear Seasonality: The dataset reveals a distinct, repeating sales spike every December. This peak is driven by holiday shopping, indicating a critical need for high inventory buffers during late Q4.
-
 Promo Campaign Velocity: Running a promotion significantly changes store economics. Average daily sales spike heavily on promotional days compared to standard operations, confirming that short-term marketing drops are highly effective for driving foot traffic.
-
 Store Type Outliers: Store Type B represents a very small number of physical locations, yet it generates significantly higher average daily sales and traffic per store than types A, C, or D. This suggests Type B might represent high-traffic urban or flagship formats that warrant separate inventory rules.
 
-Challenges Faced
+**Challenges Faced**
 Technical Tool Bottlenecks: Trying to load over a million raw rows directly into a local PostgreSQL database table using basic insert loops was incredibly slow. I had to research batch insertion configurations using SQLAlchemy to make the pipeline efficient.
-
 Distorting Data Skew: In my first exploratory charts, my daily sales averages were completely inaccurate. I realized I forgot to exclude days when the stores were shut for holidays or Sundays. Fixing this taught me to audit the operational status field before trusting descriptive metrics.
-
 Power BI Resource Management: Initially, the dashboard was sluggish when applying multi-select slicers. Pre-aggregating values at the monthly and store levels in SQL rather than relying entirely on heavy DAX calculations fixed the rendering lag.
 
-What I Learned
+**What I Learned**
 Data cleaning isn't just about dropping null values; it requires understanding the business logic (e.g., knowing that a closed store should not be included in daily performance baselines).
-
 Relational databases are essential for scaling. Moving data from flat CSV files into PostgreSQL taught me how data schemas operate outside of basic tutorial environments.
-
 Dashboards must be designed for end-users. A regional manager does not want to see raw code; they want clean, dynamic visuals that show exactly which stores are missing their targets.
 
-Future Improvements
+**Future Improvements**
 Build an automation script to pull fresh data instead of relying on manual CSV exports.
-
 Dive deeper into competition tracking features to see if a rival opening nearby hurts long-term sales retention.
-
 Explore a simple time-series forecasting model (like ARIMA or Prophet) to project next quarter's revenue limits.
 
 
