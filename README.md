@@ -54,21 +54,9 @@ SELECT
     SUM("Customers") AS Total_Foot_Traffic
 FROM rossmann_sales
 GROUP BY Sales_Year, Sales_Month
-ORDER BY Sales_Year, Sales_Month;```
-
-
+ORDER BY Sales_Year, Sales_Month;
 ```
-## Project Structure
 
-rossmann-project/
-├── data/
-│   ├── raw/
-│   └── clean/
-├── notebooks/
-│   ├── 01_cleaning.ipynb
-│   └── 02_eda.ipynb
-└── charts/
-```
 
 Additional SQL queries were developed to extract:
 
@@ -132,6 +120,18 @@ Explore a simple time-series forecasting model (like ARIMA or Prophet) to projec
 4. **Store Type b** generates 48% higher sales than other store types
 5. **Competition distance shows no negative impact** - top stores have competition within 500m
 6. **Sunday and Monday** are peak sales days - Saturday is lowest 
+
+```
+## Project Structure
+rossmann-project/
+├── data/
+│   ├── raw/
+│   └── clean/
+├── notebooks/
+│   ├── 01_cleaning.ipynb
+│   └── 02_eda.ipynb
+└── charts/
+```
 
 
 ## Power BI Dashboard
