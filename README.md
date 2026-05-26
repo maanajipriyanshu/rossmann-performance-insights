@@ -105,13 +105,11 @@ Dive deeper into competition tracking features to see if a rival opening nearby 
 
 Explore a simple time-series forecasting model (like ARIMA or Prophet) to project next quarter's revenue limits.
 
----
 
 ### Final Recruiter Impression
-
 **Does this sound believable for an India-based fresher applying to Germany?**
 **Yes, completely.** If I read this, I immediately think: *“This applicant knows they are a fresher, they aren't pretending to be a senior architect, but they understand the process.”* Including the **Challenges Faced** and **What I Learned** sections makes the project completely trustworthy. It tells me you actually spent hours staring at a slow terminal window trying to figure out why your database insert script was hanging, or why your Power BI DAX code was slow. That is exactly the type of practical problem-solving grit I want to see when hiring a junior data analyst.
-=======
+
 ## Key Findings
 
 1. **Store 817** is the top performer with €21.8K average daily sales, 3x the overall average
