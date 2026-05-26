@@ -73,6 +73,7 @@ rossmann-project/
 
 Additional SQL queries were developed to extract:
 
+<<<<<<< HEAD
 Performance comparisons between store types.
 
 Revenue differences on days with promo campaigns versus regular days.
@@ -124,6 +125,16 @@ Explore a simple time-series forecasting model (like ARIMA or Prophet) to projec
 
 **Does this sound believable for an India-based fresher applying to Germany?**
 **Yes, completely.** If I read this, I immediately think: *“This applicant knows they are a fresher, they aren't pretending to be a senior architect, but they understand the process.”* Including the **Challenges Faced** and **What I Learned** sections makes the project completely trustworthy. It tells me you actually spent hours staring at a slow terminal window trying to figure out why your database insert script was hanging, or why your Power BI DAX code was slow. That is exactly the type of practical problem-solving grit I want to see when hiring a junior data analyst.
+=======
+## Key Findings
+
+1. **Store 817** is the top performer with €21.8K average daily sales, 3x the overall average
+2. **Promotions increase sales by 38%** - from €5.9K to €8.2K average daily sales
+3. **December sales spike 49%** above yearly average - strong Christmas seasonality
+4. **Store Type b** generates 48% higher sales than other store types
+5. **Competition distance shows no negative impact** - top stores have competition within 500m
+6. **Sunday and Monday** are peak sales days - Saturday is lowest 
+>>>>>>> 59e48313a750a522397983e7a7ca8e9e76bd33a4
 
 
 ## Power BI Dashboard
