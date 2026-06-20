@@ -14,6 +14,7 @@ Most public Rossmann notebooks stop at "here's a chart." This one tries to go wh
 - December sales spike 49% above the January low (€8,609 vs €6,564). November already starts climbing ahead of it, so holiday seasonality shows up clearly.
 - Promotional lift isn't even across formats. In Q4, Store Type A gets the biggest lift from promos (+38.3%), while Type B, already the strongest performer, gets the smallest (+19.4%). Promo budget pointed at Type B in Q4 is probably not the best use of that spend.
 - Splitting all 1,115 stores into four performance tiers against the €6,956 chain average tells a different story than the top-10 leaderboard: 7.0% are Elite (≥150% of average), 22.4% High Performer, 26.9% On Track, and 43.7% Underperformer. Almost half the chain sits below average.
+- Sunday's sales average looks like a "peak day" at €8,225, nearly matching Monday. But only 33 of 1,115 stores open on Sundays, against the full chain every other day. Once that's accounted for, Monday is the actual strongest full-chain trading day, and Sunday isn't a comparable measurement at all.
 
 Full write-up with business recommendations: [`reports/executive_summary.md`](reports/executive_summary.md)
 
@@ -57,4 +58,4 @@ Python (Pandas), PostgreSQL, SQLAlchemy, Power BI, Matplotlib/Seaborn.
 
 ## Author
 
-Priyanshu Singh — [LinkedIn] · [Portfolio]s
+Priyanshu Singh — [LinkedIn] · [Portfolio]
