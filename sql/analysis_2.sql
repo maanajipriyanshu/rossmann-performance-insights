@@ -588,12 +588,52 @@ SELECT
     s.storetype,
     s.assortment,
     CASE
-        WHEN a.extreme_anomaly_days > 20 THEN 'High — audit recommended'
-        WHEN a.extreme_anomaly_days > 10 THEN 'Medium — worth investigating'
-        WHEN a.extreme_anomaly_days > 5  THEN 'Low — keep an eye on it'
+        WHEN a.extreme_anomaly_days > 20 THEN 'High - audit recommended'
+        WHEN a.extreme_anomaly_days > 10 THEN 'Medium - worth investigating'
+        WHEN a.extreme_anomaly_days > 5  THEN 'Low - keep an eye on it'
         ELSE                                  'Normal'
     END AS anomaly_risk_flag
 FROM anomaly_counts a
 JOIN rossmann_store s ON a.store = s.store
 WHERE a.extreme_anomaly_days > 5
 ORDER BY a.extreme_anomaly_days DESC;
+
+
+-- Effectiveness of PROMO2 (CONTINUOUS PROMOTION)
+-- Do stores running sustained Promo2 campaigns outperform stores on single-day promos only?
+-- Grouped by store type to see whether the effect varies by format.
+WITH promo2_analysis AS (
+    SELECT
+        st.store,
+        st.promo2,
+        st.storetype,
+        AVG(s.sales)                          AS avg_daily_sales,
+        AVG(s.customers)                      AS avg_daily_customers,
+        AVG(s.sales / NULLIF(s.customers, 0)) AS avg_basket_size
+    FROM rossmann_store st
+    JOIN rossmann_sales s
+        ON st.store = s.store
+    WHERE s.open = 1
+    GROUP BY
+        st.store,
+        st.promo2,
+        st.storetype
+)
+SELECT
+    storetype,
+    COUNT(*) FILTER (WHERE promo2 = 1)   AS promo2_store_count,
+    COUNT(*) FILTER (WHERE promo2 = 0)   AS non_promo2_store_count,
+    ROUND(
+        AVG(avg_daily_sales) FILTER (WHERE promo2 = 1)::NUMERIC,
+        2
+    ) AS promo2_sales,
+    ROUND(
+        AVG(avg_daily_sales) FILTER (WHERE promo2 = 0)::NUMERIC,
+        2
+    ) AS non_promo2_sales,
+    ROUND(
+	(AVG(avg_daily_sales) FILTER (WHERE promo2 = 1)
+            / NULLIF(AVG(avg_daily_sales) FILTER (WHERE promo2 = 0),0) - 1) * 100, 1) AS promo2_lift_pct_by_type
+FROM promo2_analysis
+GROUP BY storetype
+ORDER BY storetype;
