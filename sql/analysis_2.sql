@@ -381,3 +381,161 @@ SELECT
 FROM competition_bands
 GROUP BY competition_zone
 ORDER BY AVG(avg_daily_sales) DESC;
+
+
+-- Impact of holiday and season
+-- Which months drive the highest revenue, and how much of that overlaps with holidays?
+-- Indexes each month against the annual average to flag peak, normal, and low seasons.
+WITH enriched_sales AS (
+    SELECT
+        s.sales,
+        s.customers,
+        s.promo,
+        s.stateholiday,
+        s.schoolholiday,
+        EXTRACT(MONTH FROM s.date::DATE) AS month_num,
+        TO_CHAR(s.date::DATE, 'Month') AS month_name,
+        EXTRACT(DOW FROM s.date::DATE) AS dow_num,
+        TO_CHAR(s.date::DATE, 'Day') AS day_name,
+        EXTRACT(YEAR FROM s.date::DATE) AS year_num
+    FROM rossmann_sales s
+    WHERE s.open = 1
+),
+month_summary AS (
+    SELECT
+        month_num,
+        TRIM(month_name) AS month_name,
+        ROUND(AVG(sales)::NUMERIC, 2) AS avg_daily_sales,
+        ROUND(AVG(customers)::NUMERIC, 0) AS avg_daily_customers,
+        COUNT(*) FILTER (WHERE stateholiday != '0') AS state_holiday_days,
+        COUNT(*) FILTER (WHERE schoolholiday = 1)   AS school_holiday_days
+    FROM enriched_sales
+    GROUP BY month_num, month_name
+),
+portfolio_avg AS (
+    SELECT AVG(sales) AS overall_avg FROM enriched_sales
+)
+SELECT
+    m.month_num,
+    m.month_name,
+    m.avg_daily_sales,
+    m.avg_daily_customers,
+    m.state_holiday_days,
+    m.school_holiday_days,
+    ROUND(m.avg_daily_sales / p.overall_avg * 100 - 100, 1) AS index_vs_annual_avg_pct,
+    RANK() OVER (ORDER BY m.avg_daily_sales DESC) AS revenue_rank,
+    CASE
+        WHEN m.avg_daily_sales > p.overall_avg * 1.2 THEN 'Peak'
+        WHEN m.avg_daily_sales > p.overall_avg * 0.9 THEN 'Normal'
+        ELSE 'Low'
+    END AS season_flag
+FROM month_summary m, portfolio_avg p
+ORDER BY m.month_num;
+
+-- Store tier classification
+-- How do the 1,115 stores break down when scored across revenue, growth, and consistency?
+-- Uses NTILE quartiles on each dimension, then sums into a composite score.
+-- Lower composite = stronger store (1 = top quartile on all three).
+WITH store_kpis AS (
+    SELECT
+        s.store,
+        SUM(s.sales) AS total_revenue,
+        AVG(s.sales) AS avg_daily_sales,
+        STDDEV(s.sales) AS sales_volatility,
+        AVG(s.sales) / NULLIF(STDDEV(s.sales), 0) AS consistency_ratio,
+        COUNT(*) AS open_days,
+        AVG(s.sales) FILTER (WHERE EXTRACT(YEAR FROM s.date::DATE) = 2014)
+            / NULLIF(AVG(s.sales) FILTER (WHERE EXTRACT(YEAR FROM s.date::DATE) = 2013), 0)
+            - 1 AS yoy_growth_rate
+    FROM rossmann_sales s
+    WHERE s.open = 1
+    GROUP BY s.store
+),
+scored AS (
+    SELECT
+        store,
+        avg_daily_sales,
+        consistency_ratio,
+        yoy_growth_rate,
+        NTILE(4) OVER (ORDER BY avg_daily_sales DESC) AS revenue_quartile,
+        NTILE(4) OVER (ORDER BY yoy_growth_rate DESC) AS growth_quartile,
+        NTILE(4) OVER (ORDER BY consistency_ratio DESC) AS consistency_quartile
+    FROM store_kpis
+    WHERE yoy_growth_rate IS NOT NULL
+),
+composite AS (
+    SELECT
+        store,
+        avg_daily_sales,
+        yoy_growth_rate,
+        consistency_ratio,
+        -- Lower total = better (each quartile: 1=top, 4=bottom)
+        revenue_quartile + growth_quartile + consistency_quartile AS composite_score
+    FROM scored
+)
+SELECT
+    c.store,
+    ROUND(c.avg_daily_sales ::NUMERIC, 2) AS avg_daily_sales_eur,
+    ROUND(c.yoy_growth_rate * 100 ::NUMERIC, 1) AS yoy_growth_pct,
+    ROUND(c.consistency_ratio ::NUMERIC, 2) AS consistency_ratio,
+    c.composite_score,
+    CASE
+        WHEN composite_score <= 5 THEN 'Tier 1 - top performers across all three dimensions'
+        WHEN composite_score <= 7 THEN 'Tier 2 - strong on at least two dimensions'
+        WHEN composite_score <= 9 THEN 'Tier 3 - mixed, room to improve'
+        ELSE                           'Tier 4 - underperforming, needs review'
+    END AS store_tier,
+    st.storetype,
+    st.assortment,
+    ROUND(st.competitiondistance, 0) AS competition_dist_m
+FROM composite c
+JOIN stores st ON c.store = st.store
+ORDER BY c.composite_score, c.avg_daily_sales DESC;
+
+-- Sales momentum over week over week
+-- Is each store accelerating or slowing down in the most recent period?
+-- Uses LAG() for WoW and 4-week-ago comparisons, plus a rolling 4-week average as baseline.
+WITH weekly_sales AS (
+    SELECT
+        store,
+        DATE_TRUNC('week', date::DATE) AS week_start,
+        SUM(sales) AS weekly_revenue,
+        SUM(customers) AS weekly_customers,
+        COUNT(*) AS open_days
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store, DATE_TRUNC('week', date::DATE)
+),
+weekly_momentum AS (
+    SELECT
+        store,
+        week_start,
+        weekly_revenue,
+        LAG(weekly_revenue, 1) OVER (PARTITION BY store ORDER BY week_start) AS prev_week_rev,
+        LAG(weekly_revenue, 4) OVER (PARTITION BY store ORDER BY week_start) AS prev_4wk_rev,
+        LEAD(weekly_revenue, 1) OVER (PARTITION BY store ORDER BY week_start) AS next_week_rev,
+        AVG(weekly_revenue) OVER (
+            PARTITION BY store
+            ORDER BY week_start
+            ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
+        ) AS rolling_4wk_avg
+    FROM weekly_sales
+)
+SELECT
+    store,
+    week_start,
+    weekly_revenue,
+    ROUND(weekly_revenue - prev_week_rev::NUMERIC, 0) AS wow_change_eur,
+    ROUND((weekly_revenue - prev_week_rev)
+        / NULLIF(prev_week_rev, 0) * 100 ::NUMERIC, 1) AS wow_growth_pct,
+    ROUND((weekly_revenue - prev_4wk_rev)
+        / NULLIF(prev_4wk_rev, 0) * 100::NUMERIC, 1) AS vs_4wk_ago_pct,
+    ROUND(rolling_4wk_avg::NUMERIC, 0) AS rolling_4wk_avg_eur,
+    CASE
+        WHEN weekly_revenue > rolling_4wk_avg * 1.1 THEN 'Accelerating'
+        WHEN weekly_revenue > rolling_4wk_avg * 0.9 THEN 'Stable'
+        ELSE 'Decelerating'
+    END AS momentum_flag
+FROM weekly_momentum
+WHERE week_start >= '2015-01-01'  -- most recent period only
+ORDER BY store, week_start;
