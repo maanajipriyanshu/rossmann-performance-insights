@@ -539,3 +539,61 @@ SELECT
 FROM weekly_momentum
 WHERE week_start >= '2015-01-01'  -- most recent period only
 ORDER BY store, week_start;
+
+
+-- Anomaly Detection ( Unusual sales days)
+-- Which stores have an unusually high number of statistical outlier days?
+-- Z-score per store per day; flags stores where >3σ days are frequent enough to investigate.
+WITH store_stats AS (
+    SELECT
+        store,
+        AVG(sales) AS mean_sales,
+        STDDEV(sales) AS std_sales
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store
+),
+daily_zscore AS (
+    SELECT
+        s.store,
+        s.date,
+        s.sales,
+        st.mean_sales,
+        st.std_sales,
+        ROUND((s.sales - st.mean_sales) / NULLIF(st.std_sales, 0), 3) AS z_score
+    FROM rossmann_sales s
+    JOIN store_stats st ON s.store = st.store
+    WHERE s.open = 1
+),
+anomaly_counts AS (
+    SELECT
+        store,
+        COUNT(*) FILTER (WHERE ABS(z_score) > 3) AS extreme_anomaly_days,  -- >3σ
+        COUNT(*) FILTER (WHERE ABS(z_score) > 2) AS moderate_anomaly_days, -- >2σ
+        COUNT(*) AS total_open_days,
+        ROUND(AVG(z_score)::NUMERIC, 3) AS mean_z,
+        ROUND(MAX(z_score)::NUMERIC, 3) AS max_z,
+        ROUND(MIN(z_score)::NUMERIC, 3) AS min_z
+    FROM daily_zscore
+    GROUP BY store
+)
+SELECT
+    a.store,
+    a.extreme_anomaly_days,
+    a.moderate_anomaly_days,
+    ROUND(a.extreme_anomaly_days::NUMERIC / a.total_open_days * 100, 2) AS anomaly_rate_pct,
+    a.mean_z,
+    a.max_z AS highest_spike_z,
+    a.min_z AS deepest_drop_z,
+    s.storetype,
+    s.assortment,
+    CASE
+        WHEN a.extreme_anomaly_days > 20 THEN 'High — audit recommended'
+        WHEN a.extreme_anomaly_days > 10 THEN 'Medium — worth investigating'
+        WHEN a.extreme_anomaly_days > 5  THEN 'Low — keep an eye on it'
+        ELSE                                  'Normal'
+    END AS anomaly_risk_flag
+FROM anomaly_counts a
+JOIN rossmann_store s ON a.store = s.store
+WHERE a.extreme_anomaly_days > 5
+ORDER BY a.extreme_anomaly_days DESC;
