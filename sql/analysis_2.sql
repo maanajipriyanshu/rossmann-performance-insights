@@ -276,3 +276,108 @@ SELECT
     RANK() OVER (ORDER BY avg_daily_sales_eur DESC) AS revenue_rank
 FROM assortment_agg
 ORDER BY avg_daily_sales_eur DESC;
+
+
+-- Performance benchmark for assortment
+-- Which assortment type (basic / extra / extended) drives the most revenue per store?
+-- Includes promo effectiveness ratio to see whether assortment type affects promo response.
+WITH store_metrics AS (
+    SELECT
+        s.store,
+        st.assortment,
+        st.storetype,
+        SUM(s.sales) AS total_revenue,
+        AVG(s.sales) AS avg_daily_sales,
+        AVG(s.customers) AS avg_daily_customers,
+        ROUND(AVG(s.sales / NULLIF(s.customers, 0)), 2) AS avg_basket_size,
+        COUNT(*) AS open_days,
+        AVG(s.sales) FILTER (WHERE s.promo = 1)
+            / NULLIF(AVG(s.sales) FILTER (WHERE s.promo = 0), 0) AS promo_multiplier
+    FROM rossmann_sales s
+    JOIN rossmann_store st ON s.store = st.store
+    WHERE s.open = 1
+    GROUP BY s.store, st.assortment, st.storetype
+),
+assortment_agg AS (
+    SELECT
+        assortment,
+        storetype,
+        COUNT(DISTINCT store) AS store_count,
+        ROUND(AVG(avg_daily_sales)::NUMERIC, 2) AS avg_daily_sales_eur,
+        ROUND(AVG(avg_daily_customers)::NUMERIC, 0) AS avg_daily_customers,
+        ROUND(AVG(avg_basket_size)::NUMERIC, 2) AS avg_basket_size_eur,
+        ROUND(AVG(promo_multiplier)::NUMERIC, 3) AS promo_effectiveness_ratio,
+        ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP
+		      (ORDER BY avg_daily_sales)::NUMERIC, 2) AS median_daily_sales_eur,
+        ROUND(PERCENTILE_CONT(0.9) WITHIN GROUP
+            (ORDER BY avg_daily_sales)::NUMERIC, 2) AS p90_daily_sales_eur
+    FROM store_metrics
+    GROUP BY assortment, storetype
+)
+SELECT
+    assortment,
+    CASE assortment
+        WHEN 'a' THEN 'Basic'
+        WHEN 'b' THEN 'Extra'
+        WHEN 'c' THEN 'Extended'
+    END AS assortment_label,
+    storetype,
+    store_count,
+    avg_daily_sales_eur,
+    avg_daily_customers,
+    avg_basket_size_eur,
+    promo_effectiveness_ratio,
+    median_daily_sales_eur,
+    p90_daily_sales_eur,
+    RANK() OVER (ORDER BY avg_daily_sales_eur DESC) AS revenue_rank
+FROM assortment_agg
+ORDER BY avg_daily_sales_eur DESC;
+
+
+-- Impact of Competition proximity
+-- Does having a competitor nearby actually hurt revenue?
+-- Bands stores by distance to nearest competitor, compares average daily sales across zones.
+WITH store_revenue AS (
+    SELECT
+        s.store,
+        AVG(s.sales) AS avg_daily_sales,
+        AVG(s.customers) AS avg_daily_customers,
+        SUM(s.sales) AS total_revenue,
+        COUNT(*) AS open_days
+    FROM rossmann_sales s
+    WHERE s.open = 1
+    GROUP BY s.store
+),
+competition_bands AS (
+    SELECT
+        st.store,
+        st.competitiondistance,
+        st.storetype,
+        st.assortment,
+        sr.avg_daily_sales,
+        sr.avg_daily_customers,
+        CASE
+            WHEN st.competitiondistance IS NULL THEN 'No competitor data'
+            WHEN st.competitiondistance <= 500 THEN '0-500m'
+            WHEN st.competitiondistance <= 1000 THEN '500m-1km'
+            WHEN st.competitiondistance <= 3000 THEN '1km-3km'
+            WHEN st.competitiondistance <= 10000 THEN '3km-10km'
+            ELSE '10km+'
+        END AS competition_zone
+    FROM rossmann_store st
+    JOIN store_revenue sr ON st.store = sr.store
+)
+SELECT
+    competition_zone,
+    COUNT(DISTINCT store)                          AS store_count,
+    ROUND(AVG(avg_daily_sales), 2)                AS avg_daily_sales_eur,
+    ROUND(AVG(avg_daily_customers), 0)            AS avg_daily_customers,
+    ROUND(STDDEV(avg_daily_sales), 2)             AS sales_std_dev,
+    ROUND(MIN(avg_daily_sales), 2)                AS min_store_sales,
+    ROUND(MAX(avg_daily_sales), 2)                AS max_store_sales,
+    ROUND(AVG(avg_daily_sales)
+        / NULLIF((SELECT AVG(avg_daily_sales) FROM competition_bands), 0) * 100, 1)
+                                                  AS index_vs_portfolio_avg
+FROM competition_bands
+GROUP BY competition_zone
+ORDER BY AVG(avg_daily_sales) DESC;
