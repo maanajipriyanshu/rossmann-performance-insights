@@ -14,7 +14,7 @@
 
 ### 1. Promotions work, but not evenly across store types
 
-Across the whole chain, promo days average €8,228.74 against €5,929.83 on non-promo days. Clear effect chain-wide. But break out Q4 (Oct–Dec) by store type and Store Type A gets a 38.3% lift from promotions, while Type B - already the strongest performer - gets only 19.4%. Type B stores are likely near capacity during the holiday season, so the marginal return on promo spend there is roughly half what it is for Type A.
+Across the whole chain, promo days average €8,228.74 against €5,929.83 on non-promo days. Clear effect chain-wide. But break out Q4 (Oct-Dec) by store type and Store Type A gets a 38.3% lift from promotions, while Type B - already the strongest performer - gets only 19.4%. Type B stores are likely near capacity during the holiday season, so the marginal return on promo spend there is roughly half what it is for Type A.
 
 **Recommendation:** Shift more Q4 promotional budget toward Type A and Type D stores (32.9% lift). Type B promo spend in Q4 is lower priority - the budget works harder where the lift is bigger.
 
