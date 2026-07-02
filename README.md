@@ -58,4 +58,4 @@ Python (Pandas), PostgreSQL, SQLAlchemy, Power BI, Matplotlib/Seaborn.
 
 ## Author
 
-Priyanshu Singh - [(https://www.linkedin.com/in/maanapriyanshurajput/)] · [https://maanajipriyanshu.github.io/insights-by-priyanshu/]
+Priyanshu Singh - [(https://www.linkedin.com/in/maanapriyanshurajput/)] · [(https://maanajipriyanshu.github.io/insights-by-priyanshu/)]
