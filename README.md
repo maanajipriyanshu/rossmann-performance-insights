@@ -57,6 +57,76 @@ The revenue trend is consistent across 2013 and 2014. December peaks every year.
 **Store Type b generates the highest basket size at 11.3 EUR**
 Type d is second at 8.7 EUR, Type c at 8.5 EUR, Type a at 5.1 EUR. The gap between Type b and Type a is large enough that store format is a meaningful driver of revenue quality, not just footfall.
 
+
+## Analyst Notes
+
+Scope: 1,115 stores, 844,338 trading days, 2013 to 2015 (2015 partial, through July). Method: PostgreSQL analysis on cleaned sales and store metadata, cross-validated against Python EDA and a Power BI dashboard.
+
+**Headline numbers**
+- Chain-wide average daily sales: 6,956 EUR
+- Total sales across the period: 5.87B EUR
+- Promotions lift average sales by 38.8%
+- Just over half the chain (56.5%) falls below the chain average
+
+---
+
+**1. Promotions work, but not evenly across store types**
+
+Across the whole chain, promo days average 8,228 EUR against 5,929 EUR on non-promo days. Clear effect chain-wide. But it is not uniform. Break out the Q4 window (Oct to Dec) by store type and Store Type a gets a 38.3% lift from promotions, while Type b, already the strongest performer, gets only 19.4%. Type b stores are likely close to capacity during the holiday season, so the marginal return on promo spend there is roughly half what it is for Type a.
+
+Worth acting on: shift more of the Q4 promotional budget toward Type a and Type d stores (32.9% lift), and treat Type b promo spend in Q4 as lower priority. Not zero, just lower. The budget works harder where the lift is bigger.
+
+---
+
+**2. Store performance is concentrated, and the long tail is large**
+
+Store 817 alone does 21,757 EUR per day, more than 3x the chain average, and the top 10 stores all clear 16,500 EUR. The more important number though is the tier breakdown: only 7% of stores qualify as elite (above 150% of average), while 56.5% sit below 90% of average. That is over 630 stores.
+
+The "celebrate the top 10" framing undersells where the real opportunity is. A 5-percentage-point improvement in the underperformer tier, moving stores from below 90% into the 90 to 110% band, would likely have a bigger total revenue impact than squeezing more out of the already-strong top 10, simply because of how many stores are involved. Worth following up: are the underperformer stores clustered by region, competition distance, or store type, or is it spread evenly?
+
+---
+
+**3. Store Type b looks like the format to expand, with one caveat**
+
+Type b averages 10,233 EUR per day, 48% above the next-best type (c at 6,933 EUR). On its face this argues for opening more Type b stores. The caveat: there are only 17 Type b stores in the dataset, against 602+ Type a stores. A 48% lift on a sample of 17 is a real signal but not a statistically settled one. Type b also has the smallest incremental promo response in Q4, meaning each new Type b store may already need less promotional support to perform.
+
+Before committing capital to expanding Type b format, it is worth validating whether the strong baseline is location-driven (urban placement, foot traffic) rather than format-driven.
+
+---
+
+**4. Seasonality is real and worth planning inventory around**
+
+December sales run 49% above the January low (8,609 EUR vs 6,564 EUR), with November already climbing ahead of it. Not a surprising result for retail, but a good sanity check that the data behaves as expected. It is also a reminder to look at December on its own rather than folding it into Q4 generally, since it pulls averages upward for any store open through the season.
+
+Treat November to December as its own planning window instead of lumping it into Q4. The December spike is sharp enough that blending it with October and November understates how concentrated the effect really is.
+
+---
+
+**5. The 2014 to 2015 decline is a data artifact, not a real trend**
+
+Raw totals make 2015 look like a sharp drop (1.39B EUR vs 2.18B EUR in 2014). That is misleading: 2015 in this dataset only runs through July, so it is being compared against full years. Correct for trading days and average daily sales actually grew 9.7% in 2015, against a 5.3% decline the year before.
+
+Any year-over-year comparison on this dataset needs to use a daily-average or trading-day-adjusted metric, not raw totals. Easy trap to fall into. A raw-totals read here would have landed on the opposite, wrong conclusion.
+
+---
+
+**6. Sunday's peak day status is a sample-size illusion**
+
+Only 33 of 1,115 stores open on Sundays, against the full chain on every other day. Those 33 stores average 8,224 EUR, nearly matching Monday's full-chain average of 8,216 EUR, but that is not a meaningful comparison. It is 3% of the chain, almost certainly a cluster of high-traffic flagship locations, set against 100% of the chain on Monday.
+
+Drop Sunday from any "best day of the week" framing unless the store count is reported alongside it. Monday is the correct answer to "which day performs best chain-wide." If there is a separate business question about why those 33 stores open on Sunday and whether more stores should, that is worth its own analysis, but it is a different question.
+
+---
+
+**What still needs validation**
+
+The Type b sample-size caveat above (17 stores) means that finding should be treated as a hypothesis to test further, not a settled conclusion.
+
+---
+
+**Bottom line**
+
+The chain's growth lever is not the top 10 stores. It is the 630+ stores sitting below 90% of average. Promotional spend is currently not allocated where it has the most marginal impact, and the 2014 to 2015 decline that raw totals suggest does not exist once trading days are accounted for correctly.
 ---
 
 ## Project Structure
