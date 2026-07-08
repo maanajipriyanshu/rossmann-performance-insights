@@ -129,6 +129,8 @@ The Type b sample-size caveat above (17 stores) means that finding should be tre
 The chain's growth lever is not the top 10 stores. It is the 630+ stores sitting below 90% of average. Promotional spend is currently not allocated where it has the most marginal impact, and the 2014 to 2015 decline that raw totals suggest does not exist once trading days are accounted for correctly.
 ---
 
+---
+
 ## Project Structure
 
 ```
