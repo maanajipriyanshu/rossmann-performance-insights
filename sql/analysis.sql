@@ -1,59 +1,896 @@
-select store, round(avg(sales),2) as average_sales
-from rossmann_sales
-group by store
-order by average_sales desc
-limit 10;
+-- Rossmann Store Performance Analysis
+-- FY2013 - H1 2015 | 1,115 stores | 844,338 records
+-- PostgreSQL 15
+-- Personal portfolio project - source data from Kaggle Rossmann Store Sales competition
 
+-- Tables used:
+--   rossmann_sales(Store, Date, Sales, Customers, Open, Promo, StateHoliday, SchoolHoliday)
+--   rossmann_store(Store, StoreType, Assortment, CompetitionDistance,
+--                   CompetitionOpenSinceMonth, CompetitionOpenSinceYear,
+--                   Promo2, Promo2SinceWeek, Promo2SinceYear, PromoInterval)
 
-select promo, round(avg(sales),2) as average_sales,count (*) as total_days
-from rossmann_sales
-group by promo
-order by average_sales desc;
-
-select s.storetype, round(avg(r.sales),2) as average_sales, sum(r.sales) as total_sales
-from rossmann_sales r 
-join rossmann_store s on r.store = s.store
-group by s.storetype
-order by average_sales desc;
-
-select month, round(avg(sales),2) as average_sales
-from rossmann_sales
-group by month
-order by month asc;
-
-select store, round(avg(sales),2) as average_sales,
-rank() over(order by avg(sales) desc) as sales_rank
-from rossmann_sales
-group by store
-order by average_sales desc
-limit 10;
-
-select month, round(avg(sales),1), round(avg(sales) - lag(round(avg(sales),2))
-over(order by month),2) as mom_growth
-from rossmann_sales
-group by month
-order by mom_growth asc;
-
-
-with average_sales as(
-select round(avg(sales),2) as overall_average
-from rossmann_sales
-),
-store_sales as (
-select store, round(avg(sales),2) as store_average
-from rossmann_sales
-group by store
+-- Executive KPI summary
+-- Revenue, customers and promotion coverage
+WITH base AS (
+    SELECT
+        MIN(date) AS report_start_date,
+        MAX(date) AS report_end_date,
+        COUNT(DISTINCT store) AS total_active_stores,
+        SUM(sales)::NUMERIC AS total_revenue_eur,
+        ROUND(
+            SUM(sales)::NUMERIC /
+            COUNT(DISTINCT date),
+        2) AS avg_daily_revenue_eur,
+        SUM(customers) AS total_customers,
+        ROUND(
+            SUM(sales)::NUMERIC /
+            NULLIF(SUM(customers),0),
+        2) AS revenue_per_customer_eur,
+        ROUND(
+            100.0 * COUNT(*) FILTER (WHERE promo = 1)
+            / COUNT(*),
+        2) AS promo_store_day_pct
+    FROM rossmann_sales
+    WHERE open = 1  -- exclude closed store-days; they'd pull down all averages
 )
-select s.store,s.store_average,a.overall_average,round(s.store_average - a.overall_average, 2) as difference
-from store_sales s
-cross join average_sales a
-where s.store_average > a.overall_average
-order by difference desc
-limit 10;
+SELECT *
+FROM base;
+
+-- which stores keep landing in the bottom 25% every quarter?
+-- using NTILE to rank stores per quarter, then counting how often each store falls in quartile 4
+
+WITH quarterly_sales AS (
+    SELECT
+        store,
+        DATE_TRUNC('quarter', date::DATE) AS quarter,
+        SUM(sales) AS quarterly_revenue,
+        AVG(sales) AS avg_daily_sales,
+        COUNT(*) AS open_days
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store, DATE_TRUNC('quarter', date::DATE)
+),
+store_quarterly_rank AS (
+    SELECT
+        store,
+        quarter,
+        quarterly_revenue,
+        avg_daily_sales,
+        NTILE(4) OVER (PARTITION BY quarter ORDER BY quarterly_revenue DESC) AS quartile
+        -- Quartile 4 = bottom 25% in that quarter
+    FROM quarterly_sales
+),
+underperformance_score AS (
+    SELECT
+        store,
+        COUNT(*) FILTER (WHERE quartile = 4) AS quarters_in_bottom_25pct,
+        COUNT(*) AS total_quarters,
+        ROUND(AVG(avg_daily_sales)::NUMERIC, 2) AS avg_daily_sales_eur,
+        ROUND(
+            COUNT(*) FILTER (WHERE quartile = 4)::NUMERIC / COUNT(*) * 100
+        , 1) AS bottom_quartile_rate_pct
+    FROM store_quarterly_rank
+    GROUP BY store
+)
+SELECT
+    u.store,
+    u.quarters_in_bottom_25pct,
+    u.total_quarters,
+    u.bottom_quartile_rate_pct,
+    u.avg_daily_sales_eur,
+    s.storetype,
+    s.assortment,
+    ROUND(s.competitiondistance::NUMERIC, 0) AS competition_dist_m,
+    CASE
+        WHEN u.bottom_quartile_rate_pct >= 75 THEN 'critical'
+        WHEN u.bottom_quartile_rate_pct >= 50 THEN 'high'
+        ELSE 'moderate'
+    END AS intervention_priority
+FROM underperformance_score u
+JOIN rossmann_store s ON u.store = s.store
+WHERE u.bottom_quartile_rate_pct >= 50
+ORDER BY u.bottom_quartile_rate_pct DESC, u.avg_daily_sales_eur ASC
+LIMIT 30;
+
+-- quick check: monthly revenue trend before building the full growth query
+SELECT
+    DATE_TRUNC('month', date::DATE) AS month,
+    SUM(sales)
+FROM rossmann_sales
+GROUP BY 1
+ORDER BY month;
+
+-- Revenue concentration - Pareto analysis
+-- Does 20% of stores actually generate 80% of revenue, or is the split different here?
+-- Ranks all 1,115 stores by revenue and tracks the cumulative share as you move down the list.
+WITH store_revenue AS (
+    SELECT
+        store,
+        SUM(sales) AS total_revenue
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store
+),
+ranked AS (
+    SELECT
+        store,
+        total_revenue,
+        ROUND(total_revenue::NUMERIC / SUM(total_revenue) OVER (), 6) AS revenue_share,
+        PERCENT_RANK() OVER (ORDER BY total_revenue DESC) AS store_percentile_desc,
+        ROW_NUMBER() OVER (ORDER BY total_revenue DESC) AS revenue_rank
+    FROM store_revenue
+),
+cumulative AS (
+    SELECT
+        store,
+        total_revenue,
+        revenue_rank,
+        revenue_share,
+        ROUND((store_percentile_desc * 100)::NUMERIC, 1) AS pct_of_stores_at_or_above,
+        ROUND(SUM(revenue_share) OVER (
+            ORDER BY total_revenue DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) * 100::NUMERIC, 2) AS cumulative_revenue_pct
+    FROM ranked
+)
+SELECT
+    store,
+    revenue_rank,
+    ROUND(total_revenue::NUMERIC, 0) AS total_revenue_eur,
+    ROUND(revenue_share * 100::NUMERIC, 3) AS individual_share_pct,
+    pct_of_stores_at_or_above,
+    cumulative_revenue_pct,
+    CASE
+        WHEN cumulative_revenue_pct <= 50 THEN 'Top 50% of revenue'
+        WHEN cumulative_revenue_pct <= 80 THEN '50-80% band'
+        WHEN cumulative_revenue_pct <= 95 THEN '80-95% band'
+        ELSE 'Bottom 5% of revenue'
+    END AS pareto_tier
+FROM cumulative
+ORDER BY revenue_rank;
 
 
-select year,sum(sales) as total_sales, round(sum(sales) - lag(sum(sales))
-over (order by year),2) as yoy_growth
-from rossmann_sales
-group by year
-order by year asc;
+-- stores that are growing faster
+-- Store-level month-over-month growth analysis
+-- Uses LAG() for month-over-month growth + consistency scoring across 12+ months.
+WITH monthly_revenue AS (
+    SELECT
+        store,
+        DATE_TRUNC('month', date::DATE) AS month,
+        SUM(sales) AS monthly_revenue,
+        COUNT(*) AS open_days
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store, DATE_TRUNC('month', date::DATE)
+),
+growth_calc AS (
+    SELECT
+        store,
+        month,
+        monthly_revenue,
+        LAG(monthly_revenue) OVER (PARTITION BY store ORDER BY month) AS prev_month_revenue,
+        ROUND(
+            (monthly_revenue - LAG(monthly_revenue) OVER (PARTITION BY store ORDER BY month))
+          / NULLIF(LAG(monthly_revenue) OVER (PARTITION BY store ORDER BY month), 0) * 100
+        , 2) AS mom_growth_pct
+    FROM monthly_revenue
+),
+store_growth_profile AS (
+    SELECT
+        store,
+        ROUND(AVG(mom_growth_pct)::NUMERIC, 2) AS avg_mom_growth_pct,
+        ROUND(STDDEV(mom_growth_pct)::NUMERIC, 2) AS growth_volatility,
+        COUNT(*) FILTER (WHERE mom_growth_pct > 0) AS positive_growth_months,
+        COUNT(*) FILTER (WHERE mom_growth_pct IS NOT NULL) AS total_growth_months,
+        ROUND(AVG(monthly_revenue)::NUMERIC, 0) AS avg_monthly_revenue_eur
+    FROM growth_calc
+    GROUP BY store
+),
+ranked_growth AS (
+    SELECT
+        *,
+        DENSE_RANK() OVER (ORDER BY avg_mom_growth_pct DESC) AS growth_rank,
+        ROUND(
+            positive_growth_months::NUMERIC / NULLIF(total_growth_months, 0) * 100
+        , 1) AS growth_consistency_pct
+    FROM store_growth_profile
+    WHERE total_growth_months >= 12  -- need at least a year of data to trust the trend
+)
+SELECT
+    rg.store,
+    rg.growth_rank,
+    rg.avg_mom_growth_pct,
+    rg.growth_volatility,
+    rg.growth_consistency_pct,
+    rg.avg_monthly_revenue_eur,
+    s.storetype,
+    s.assortment,
+    CASE
+        WHEN rg.avg_mom_growth_pct > 5 AND rg.growth_consistency_pct > 70
+            THEN 'Top Performer'
+        WHEN rg.avg_mom_growth_pct > 3 AND rg.growth_consistency_pct > 60
+            THEN 'Growing'
+        WHEN rg.avg_mom_growth_pct > 0
+            THEN 'Stable'
+        ELSE 'Needs Attention'
+    END AS investment_signal
+FROM ranked_growth rg
+JOIN rossmann_store s ON rg.store = s.store
+ORDER BY rg.growth_rank
+LIMIT 25;
+
+
+-- Promotion impact analysis
+-- Compare sales, customers and basket size between promo and non-promo days
+WITH promo_base AS (
+    SELECT
+        s.store,
+        st.storetype,
+        st.assortment,
+        EXTRACT(DOW FROM s.date::DATE) AS day_of_week,
+        s.promo,
+        s.sales,
+        s.customers,
+        ROUND(s.sales / NULLIF(s.customers, 0)::NUMERIC, 2) AS basket_size
+    FROM rossmann_sales s
+    JOIN rossmann_store st ON s.store = st.store
+    WHERE s.open = 1
+),
+promo_summary AS (
+    SELECT
+        storetype,
+        assortment,
+        ROUND(AVG(sales) FILTER (WHERE promo = 1), 2) AS avg_sales_promo_day,
+        ROUND(AVG(sales) FILTER (WHERE promo = 0), 2) AS avg_sales_non_promo_day,
+        ROUND(AVG(customers) FILTER (WHERE promo = 1), 0) AS avg_customers_promo,
+        ROUND(AVG(customers) FILTER (WHERE promo = 0), 0) AS avg_customers_non_promo,
+        ROUND(AVG(basket_size) FILTER (WHERE promo = 1), 2) AS avg_basket_promo,
+        ROUND(AVG(basket_size) FILTER (WHERE promo = 0), 2) AS avg_basket_non_promo,
+        COUNT(*) FILTER (WHERE promo = 1) AS total_promo_days,
+        COUNT(*) FILTER (WHERE promo = 0) AS total_non_promo_days
+    FROM promo_base
+    GROUP BY storetype, assortment
+)
+SELECT
+    storetype,
+    assortment,
+    avg_sales_promo_day,
+    avg_sales_non_promo_day,
+    ROUND(avg_sales_promo_day - avg_sales_non_promo_day::NUMERIC, 2) AS revenue_lift_eur,
+    ROUND((avg_sales_promo_day - avg_sales_non_promo_day)
+        / NULLIF(avg_sales_non_promo_day, 0) * 100, 1) AS revenue_lift_pct,
+    avg_customers_promo,
+    avg_customers_non_promo,
+    ROUND((avg_customers_promo - avg_customers_non_promo)::NUMERIC
+        / NULLIF(avg_customers_non_promo, 0) * 100, 1) AS customer_lift_pct,
+    avg_basket_promo,
+    avg_basket_non_promo,
+    ROUND(avg_basket_promo - avg_basket_non_promo, 2) AS basket_size_delta_eur,
+    ROUND((avg_sales_promo_day - avg_sales_non_promo_day)
+        * total_promo_days / 1000, 1) AS annualized_promo_lift_k_eur
+FROM promo_summary
+ORDER BY revenue_lift_pct DESC;
+
+-- Performance benchmark for assortment
+-- Which assortment type (basic / extra / extended) drives the most revenue per store?
+-- Includes promo effectiveness ratio to see whether assortment type affects promo response.
+WITH store_metrics AS (
+    SELECT
+        s.store,
+        st.assortment,
+        st.storetype,
+        SUM(s.sales) AS total_revenue,
+        AVG(s.sales) AS avg_daily_sales,
+        AVG(s.customers) AS avg_daily_customers,
+        ROUND(AVG(s.sales / NULLIF(s.customers, 0)), 2) AS avg_basket_size,
+        COUNT(*) AS open_days,
+        AVG(s.sales) FILTER (WHERE s.promo = 1)
+            / NULLIF(AVG(s.sales) FILTER (WHERE s.promo = 0), 0) AS promo_multiplier
+    FROM rossmann_sales s
+    JOIN rossmann_store st ON s.store = st.store
+    WHERE s.open = 1
+    GROUP BY s.store, st.assortment, st.storetype
+),
+assortment_agg AS (
+    SELECT
+        assortment,
+        storetype,
+        COUNT(DISTINCT store) AS store_count,
+        ROUND(AVG(avg_daily_sales)::NUMERIC, 2) AS avg_daily_sales_eur,
+        ROUND(AVG(avg_daily_customers)::NUMERIC, 0) AS avg_daily_customers,
+        ROUND(AVG(avg_basket_size)::NUMERIC, 2) AS avg_basket_size_eur,
+        ROUND(AVG(promo_multiplier)::NUMERIC, 3) AS promo_effectiveness_ratio,
+        ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP
+		      (ORDER BY avg_daily_sales)::NUMERIC, 2) AS median_daily_sales_eur,
+        ROUND(PERCENTILE_CONT(0.9) WITHIN GROUP
+            (ORDER BY avg_daily_sales)::NUMERIC, 2) AS p90_daily_sales_eur
+    FROM store_metrics
+    GROUP BY assortment, storetype
+)
+SELECT
+    assortment,
+    CASE assortment
+        WHEN 'a' THEN 'Basic'
+        WHEN 'b' THEN 'Extra'
+        WHEN 'c' THEN 'Extended'
+    END AS assortment_label,
+    storetype,
+    store_count,
+    avg_daily_sales_eur,
+    avg_daily_customers,
+    avg_basket_size_eur,
+    promo_effectiveness_ratio,
+    median_daily_sales_eur,
+    p90_daily_sales_eur,
+    RANK() OVER (ORDER BY avg_daily_sales_eur DESC) AS revenue_rank
+FROM assortment_agg
+ORDER BY avg_daily_sales_eur DESC;
+
+
+-- Impact of Competition proximity
+-- Does having a competitor nearby actually hurt revenue?
+-- Bands stores by distance to nearest competitor, compares average daily sales across zones.
+WITH store_revenue AS (
+    SELECT
+        s.store,
+        AVG(s.sales) AS avg_daily_sales,
+        AVG(s.customers) AS avg_daily_customers,
+        SUM(s.sales) AS total_revenue,
+        COUNT(*) AS open_days
+    FROM rossmann_sales s
+    WHERE s.open = 1
+    GROUP BY s.store
+),
+competition_bands AS (
+    SELECT
+        st.store,
+        st.competitiondistance,
+        st.storetype,
+        st.assortment,
+        sr.avg_daily_sales,
+        sr.avg_daily_customers,
+        CASE
+            WHEN st.competitiondistance IS NULL THEN 'No competitor data'
+            WHEN st.competitiondistance <= 500 THEN '0-500m'
+            WHEN st.competitiondistance <= 1000 THEN '500m-1km'
+            WHEN st.competitiondistance <= 3000 THEN '1km-3km'
+            WHEN st.competitiondistance <= 10000 THEN '3km-10km'
+            ELSE '10km+'
+        END AS competition_zone
+    FROM rossmann_store st
+    JOIN store_revenue sr ON st.store = sr.store
+)
+SELECT
+    competition_zone,
+    COUNT(DISTINCT store)                          AS store_count,
+    ROUND(AVG(avg_daily_sales), 2)                AS avg_daily_sales_eur,
+    ROUND(AVG(avg_daily_customers), 0)            AS avg_daily_customers,
+    ROUND(STDDEV(avg_daily_sales), 2)             AS sales_std_dev,
+    ROUND(MIN(avg_daily_sales), 2)                AS min_store_sales,
+    ROUND(MAX(avg_daily_sales), 2)                AS max_store_sales,
+    ROUND(AVG(avg_daily_sales)
+        / NULLIF((SELECT AVG(avg_daily_sales) FROM competition_bands), 0) * 100, 1)
+                                                  AS index_vs_portfolio_avg
+FROM competition_bands
+GROUP BY competition_zone
+ORDER BY AVG(avg_daily_sales) DESC;
+
+
+-- Impact of holiday and season
+-- Which months drive the highest revenue, and how much of that overlaps with holidays?
+-- Indexes each month against the annual average to flag peak, normal, and low seasons.
+WITH enriched_sales AS (
+    SELECT
+        s.sales,
+        s.customers,
+        s.promo,
+        s.stateholiday,
+        s.schoolholiday,
+        EXTRACT(MONTH FROM s.date::DATE) AS month_num,
+        TO_CHAR(s.date::DATE, 'Month') AS month_name,
+        EXTRACT(DOW FROM s.date::DATE) AS dow_num,
+        TO_CHAR(s.date::DATE, 'Day') AS day_name,
+        EXTRACT(YEAR FROM s.date::DATE) AS year_num
+    FROM rossmann_sales s
+    WHERE s.open = 1
+),
+month_summary AS (
+    SELECT
+        month_num,
+        TRIM(month_name) AS month_name,
+        ROUND(AVG(sales)::NUMERIC, 2) AS avg_daily_sales,
+        ROUND(AVG(customers)::NUMERIC, 0) AS avg_daily_customers,
+        COUNT(*) FILTER (WHERE stateholiday != '0') AS state_holiday_days,
+        COUNT(*) FILTER (WHERE schoolholiday = 1)   AS school_holiday_days
+    FROM enriched_sales
+    GROUP BY month_num, month_name
+),
+portfolio_avg AS (
+    SELECT AVG(sales) AS overall_avg FROM enriched_sales
+)
+SELECT
+    m.month_num,
+    m.month_name,
+    m.avg_daily_sales,
+    m.avg_daily_customers,
+    m.state_holiday_days,
+    m.school_holiday_days,
+    ROUND(m.avg_daily_sales / p.overall_avg * 100 - 100, 1) AS index_vs_annual_avg_pct,
+    RANK() OVER (ORDER BY m.avg_daily_sales DESC) AS revenue_rank,
+    CASE
+        WHEN m.avg_daily_sales > p.overall_avg * 1.2 THEN 'Peak'
+        WHEN m.avg_daily_sales > p.overall_avg * 0.9 THEN 'Normal'
+        ELSE 'Low'
+    END AS season_flag
+FROM month_summary m, portfolio_avg p
+ORDER BY m.month_num;
+
+
+-- day-of-week revenue pattern
+-- Sunday trading is limited to 33 of 1,115 stores - flagged in the output to avoid
+-- misreading Sunday as a low-revenue day when it's really a near-closed day.
+
+WITH dow_base AS (
+    SELECT
+        EXTRACT(DOW FROM date::DATE) AS dow_num,
+        TO_CHAR(date::DATE, 'Day') AS day_name,
+        store,
+        sales,
+        customers,
+        ROUND(sales / NULLIF(customers, 0)::NUMERIC, 2) AS basket_size
+    FROM rossmann_sales
+    WHERE open = 1
+),
+dow_summary AS (
+    SELECT
+        dow_num,
+        TRIM(day_name) AS day_name,
+        COUNT(DISTINCT store) AS stores_trading,
+        ROUND(AVG(sales)::NUMERIC, 2) AS avg_daily_sales_eur,
+        ROUND(AVG(customers)::NUMERIC, 0) AS avg_daily_customers,
+        ROUND(AVG(basket_size)::NUMERIC, 2) AS avg_basket_size_eur,
+        COUNT(*) AS total_store_days
+    FROM dow_base
+    GROUP BY dow_num, day_name
+)
+SELECT
+    dow_num,
+    day_name,
+    stores_trading,
+    avg_daily_sales_eur,
+    avg_daily_customers,
+    avg_basket_size_eur,
+    total_store_days,
+    ROUND(avg_daily_sales_eur
+        / AVG(avg_daily_sales_eur) OVER () * 100 - 100, 1) AS index_vs_weekly_avg_pct,
+    CASE
+        WHEN dow_num = 0
+            THEN 'Sunday - 33/1,115 stores only; treat separately'
+        WHEN avg_daily_sales_eur > AVG(avg_daily_sales_eur) OVER () * 1.1
+            THEN 'Above average'
+        WHEN avg_daily_sales_eur < AVG(avg_daily_sales_eur) OVER () * 0.9
+            THEN 'Below average'
+        ELSE 'Within normal range'
+    END AS trading_note
+FROM dow_summary
+ORDER BY dow_num;
+
+
+-- Store tier classification
+-- How do the 1,115 stores break down when scored across revenue, growth, and consistency?
+-- Uses NTILE quartiles on each dimension, then sums into a composite score.
+-- Lower composite = stronger store (1 = top quartile on all three).
+WITH store_kpis AS (
+    SELECT
+        s.store,
+        SUM(s.sales) AS total_revenue,
+        AVG(s.sales) AS avg_daily_sales,
+        STDDEV(s.sales) AS sales_volatility,
+        AVG(s.sales) / NULLIF(STDDEV(s.sales), 0) AS consistency_ratio,
+        COUNT(*) AS open_days,
+        AVG(s.sales) FILTER (WHERE EXTRACT(YEAR FROM s.date::DATE) = 2014)
+            / NULLIF(AVG(s.sales) FILTER (WHERE EXTRACT(YEAR FROM s.date::DATE) = 2013), 0)
+            - 1 AS yoy_growth_rate
+    FROM rossmann_sales s
+    WHERE s.open = 1
+    GROUP BY s.store
+),
+scored AS (
+    SELECT
+        store,
+        avg_daily_sales,
+        consistency_ratio,
+        yoy_growth_rate,
+        NTILE(4) OVER (ORDER BY avg_daily_sales DESC) AS revenue_quartile,
+        NTILE(4) OVER (ORDER BY yoy_growth_rate DESC) AS growth_quartile,
+        NTILE(4) OVER (ORDER BY consistency_ratio DESC) AS consistency_quartile
+    FROM store_kpis
+    WHERE yoy_growth_rate IS NOT NULL
+),
+composite AS (
+    SELECT
+        store,
+        avg_daily_sales,
+        yoy_growth_rate,
+        consistency_ratio,
+        -- Lower total = better (each quartile: 1=top, 4=bottom)
+        revenue_quartile + growth_quartile + consistency_quartile AS composite_score
+    FROM scored
+)
+SELECT
+    c.store,
+    ROUND(c.avg_daily_sales ::NUMERIC, 2) AS avg_daily_sales_eur,
+    ROUND(c.yoy_growth_rate * 100 ::NUMERIC, 1) AS yoy_growth_pct,
+    ROUND(c.consistency_ratio ::NUMERIC, 2) AS consistency_ratio,
+    c.composite_score,
+    CASE
+        WHEN composite_score <= 5 THEN 'Tier 1 - top performers across all three dimensions'
+        WHEN composite_score <= 7 THEN 'Tier 2 - strong on at least two dimensions'
+        WHEN composite_score <= 9 THEN 'Tier 3 - mixed, room to improve'
+        ELSE                           'Tier 4 - underperforming, needs review'
+    END AS store_tier,
+    st.storetype,
+    st.assortment,
+    ROUND(st.competitiondistance::NUMERIC, 0) AS competition_dist_m
+FROM composite c
+JOIN rossmann_store st ON c.store = st.store
+ORDER BY c.composite_score, c.avg_daily_sales DESC;
+
+
+-- Sales momentum over week over week
+-- Is each store accelerating or slowing down in the most recent period?
+-- Uses LAG() for WoW and 4-week-ago comparisons, plus a rolling 4-week average as baseline.
+WITH weekly_sales AS (
+    SELECT
+        store,
+        DATE_TRUNC('week', date::DATE) AS week_start,
+        SUM(sales) AS weekly_revenue,
+        SUM(customers) AS weekly_customers,
+        COUNT(*) AS open_days
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store, DATE_TRUNC('week', date::DATE)
+),
+weekly_momentum AS (
+    SELECT
+        store,
+        week_start,
+        weekly_revenue,
+        LAG(weekly_revenue, 1) OVER (PARTITION BY store ORDER BY week_start) AS prev_week_rev,
+        LAG(weekly_revenue, 4) OVER (PARTITION BY store ORDER BY week_start) AS prev_4wk_rev,
+        LEAD(weekly_revenue, 1) OVER (PARTITION BY store ORDER BY week_start) AS next_week_rev,
+        AVG(weekly_revenue) OVER (
+            PARTITION BY store
+            ORDER BY week_start
+            ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
+        ) AS rolling_4wk_avg
+    FROM weekly_sales
+)
+SELECT
+    store,
+    week_start,
+    weekly_revenue,
+    ROUND(weekly_revenue - prev_week_rev::NUMERIC, 0) AS wow_change_eur,
+    ROUND((weekly_revenue - prev_week_rev)
+        / NULLIF(prev_week_rev, 0) * 100 ::NUMERIC, 1) AS wow_growth_pct,
+    ROUND((weekly_revenue - prev_4wk_rev)
+        / NULLIF(prev_4wk_rev, 0) * 100::NUMERIC, 1) AS vs_4wk_ago_pct,
+    ROUND(rolling_4wk_avg::NUMERIC, 0) AS rolling_4wk_avg_eur,
+    CASE
+        WHEN weekly_revenue > rolling_4wk_avg * 1.1 THEN 'Accelerating'
+        WHEN weekly_revenue > rolling_4wk_avg * 0.9 THEN 'Stable'
+        ELSE 'Decelerating'
+    END AS momentum_flag
+FROM weekly_momentum
+WHERE week_start >= '2015-01-01'  -- most recent period only
+ORDER BY store, week_start;
+
+
+-- Anomaly Detection ( Unusual sales days)
+-- Which stores have an unusually high number of statistical outlier days?
+-- Z-score per store per day; flags stores where >3σ days are frequent enough to investigate.
+WITH store_stats AS (
+    SELECT
+        store,
+        AVG(sales) AS mean_sales,
+        STDDEV(sales) AS std_sales
+    FROM rossmann_sales
+    WHERE open = 1
+    GROUP BY store
+),
+daily_zscore AS (
+    SELECT
+        s.store,
+        s.date,
+        s.sales,
+        st.mean_sales,
+        st.std_sales,
+        ROUND((s.sales - st.mean_sales) / NULLIF(st.std_sales, 0), 3) AS z_score
+    FROM rossmann_sales s
+    JOIN store_stats st ON s.store = st.store
+    WHERE s.open = 1
+),
+anomaly_counts AS (
+    SELECT
+        store,
+        COUNT(*) FILTER (WHERE ABS(z_score) > 3) AS extreme_anomaly_days,  -- >3σ
+        COUNT(*) FILTER (WHERE ABS(z_score) > 2) AS moderate_anomaly_days, -- >2σ
+        COUNT(*) AS total_open_days,
+        ROUND(AVG(z_score)::NUMERIC, 3) AS mean_z,
+        ROUND(MAX(z_score)::NUMERIC, 3) AS max_z,
+        ROUND(MIN(z_score)::NUMERIC, 3) AS min_z
+    FROM daily_zscore
+    GROUP BY store
+)
+SELECT
+    a.store,
+    a.extreme_anomaly_days,
+    a.moderate_anomaly_days,
+    ROUND(a.extreme_anomaly_days::NUMERIC / a.total_open_days * 100, 2) AS anomaly_rate_pct,
+    a.mean_z,
+    a.max_z AS highest_spike_z,
+    a.min_z AS deepest_drop_z,
+    s.storetype,
+    s.assortment,
+    CASE
+        WHEN a.extreme_anomaly_days > 20 THEN 'High - audit recommended'
+        WHEN a.extreme_anomaly_days > 10 THEN 'Medium - worth investigating'
+        WHEN a.extreme_anomaly_days > 5  THEN 'Low - keep an eye on it'
+        ELSE                                  'Normal'
+    END AS anomaly_risk_flag
+FROM anomaly_counts a
+JOIN rossmann_store s ON a.store = s.store
+WHERE a.extreme_anomaly_days > 5
+ORDER BY a.extreme_anomaly_days DESC;
+
+
+-- Exapansion opportunity scoring
+-- Which stores score highest on a weighted combination of revenue, growth, promo response, and basket size?
+-- Weights: 30% revenue base, 35% YoY growth, 20% promo responsiveness, 15% basket size.
+WITH store_performance AS (
+    SELECT
+        s.store,
+        AVG(s.sales) AS avg_daily_sales,
+        AVG(s.customers) AS avg_daily_customers,
+        ROUND(AVG(s.sales / NULLIF(s.customers, 0)) ::NUMERIC, 2) AS avg_basket_size,
+        AVG(s.sales) FILTER (WHERE EXTRACT(YEAR FROM s.date::DATE) = 2014)
+          / NULLIF(AVG(s.sales) FILTER (WHERE EXTRACT(YEAR FROM s.date::DATE) = 2013), 0) - 1 AS yoy_growth_2014,
+        AVG(s.sales) FILTER (WHERE s.promo = 1)
+          / NULLIF(AVG(s.sales) FILTER (WHERE s.promo = 0), 0) - 1 AS promo_uplift_ratio
+    FROM rossmann_sales s
+    WHERE s.open = 1
+    GROUP BY s.store
+),
+scored AS (
+    SELECT
+        p.store,
+        p.avg_daily_sales,
+        p.avg_daily_customers,
+        p.avg_basket_size,
+        p.yoy_growth_2014,
+        p.promo_uplift_ratio,
+        st.storetype,
+        st.assortment,
+        st.competitiondistance,
+        ROUND((
+            PERCENT_RANK() OVER (ORDER BY p.avg_daily_sales) * 0.30
+          + PERCENT_RANK() OVER (ORDER BY p.yoy_growth_2014) * 0.35
+          + PERCENT_RANK() OVER (ORDER BY p.promo_uplift_ratio) * 0.20
+          + PERCENT_RANK() OVER (ORDER BY p.avg_basket_size) * 0.15)::NUMERIC, 4) AS expansion_score
+    FROM store_performance p
+    JOIN rossmann_store st ON p.store = st.store
+    WHERE p.yoy_growth_2014 IS NOT NULL
+)
+SELECT
+    store,
+    ROUND(avg_daily_sales ::NUMERIC, 2) AS avg_daily_sales_eur,
+    ROUND(yoy_growth_2014 * 100 ::NUMERIC, 1) AS yoy_growth_pct,
+    ROUND(promo_uplift_ratio * 100 ::NUMERIC, 1) AS promo_uplift_pct,
+    ROUND(avg_basket_size ::NUMERIC, 2) AS avg_basket_size_eur,
+    expansion_score,
+    storetype,
+    assortment,
+    ROUND(competitiondistance::NUMERIC, 0) AS competition_dist_m,
+    DENSE_RANK() OVER (ORDER BY expansion_score DESC) AS expansion_priority_rank,
+    CASE
+        WHEN expansion_score >= 0.80 THEN 'Strong candidate - expand now'
+        WHEN expansion_score >= 0.65 THEN 'Good candidate - plan for next cycle'
+        WHEN expansion_score >= 0.50 THEN 'Watch list - not ready yet'
+        ELSE 'Not recommended - stabilize first'
+    END AS recommendation
+FROM scored
+ORDER BY expansion_score DESC
+LIMIT 40;
+
+
+-- Effectiveness of PROMO2 (CONTINUOUS PROMOTION)
+-- Do stores running sustained Promo2 campaigns outperform stores on single-day promos only?
+-- Grouped by store type to see whether the effect varies by format.
+WITH promo2_analysis AS (
+    SELECT
+        st.store,
+        st.promo2,
+        st.storetype,
+        AVG(s.sales)                          AS avg_daily_sales,
+        AVG(s.customers)                      AS avg_daily_customers,
+        AVG(s.sales / NULLIF(s.customers, 0)) AS avg_basket_size
+    FROM rossmann_store st
+    JOIN rossmann_sales s
+        ON st.store = s.store
+    WHERE s.open = 1
+    GROUP BY
+        st.store,
+        st.promo2,
+        st.storetype
+)
+SELECT
+    storetype,
+    COUNT(*) FILTER (WHERE promo2 = 1)   AS promo2_store_count,
+    COUNT(*) FILTER (WHERE promo2 = 0)   AS non_promo2_store_count,
+    ROUND(
+        AVG(avg_daily_sales) FILTER (WHERE promo2 = 1),2
+    ) AS promo2_sales,
+    ROUND(
+        AVG(avg_daily_sales) FILTER (WHERE promo2 = 0)::NUMERIC,
+        2
+    ) AS non_promo2_sales,
+    ROUND(
+	(AVG(avg_daily_sales) FILTER (WHERE promo2 = 1)
+            / NULLIF(AVG(avg_daily_sales) FILTER (WHERE promo2 = 0),0) - 1) * 100, 1) AS promo2_lift_pct_by_type
+FROM promo2_analysis
+GROUP BY storetype
+ORDER BY storetype;
+
+
+-- Trend analysis for Customer Basket
+-- Is monthly revenue growth coming from more customers, or from each customer spending more?
+-- Decomposes MoM revenue change into volume-driven vs. basket-driven components.
+WITH monthly_kpis AS (
+    SELECT
+        DATE_TRUNC('month', date::DATE) AS month,
+        EXTRACT(YEAR FROM date::DATE)AS year_num,
+        EXTRACT(MONTH FROM date::DATE) AS month_num,
+        SUM(sales) AS total_revenue,
+        SUM(customers) AS total_customers,
+        COUNT(DISTINCT store) AS active_stores,
+        ROUND(AVG(sales / NULLIF(customers, 0))::NUMERIC, 2) AS avg_basket_size
+    FROM rossmann_sales
+    WHERE open = 1 AND customers > 0
+    GROUP BY DATE_TRUNC('month', date::DATE), EXTRACT(YEAR FROM date::DATE), EXTRACT(MONTH FROM date::DATE)
+),
+trend AS (
+    SELECT
+        month,
+        total_revenue,
+        total_customers,
+        avg_basket_size,
+        active_stores,
+        LAG(total_revenue) OVER (ORDER BY month) AS prev_month_revenue,
+        LAG(total_customers) OVER (ORDER BY month) AS prev_month_customers,
+        LAG(avg_basket_size) OVER (ORDER BY month) AS prev_basket_size
+    FROM monthly_kpis
+)
+SELECT
+    TO_CHAR(month, 'YYYY-MM') AS period,
+    total_revenue,
+    total_customers,
+    avg_basket_size,
+    ROUND((total_revenue - prev_month_revenue)
+        / NULLIF(prev_month_revenue, 0) * 100::NUMERIC, 1) AS revenue_mom_pct,
+    ROUND((total_customers - prev_month_customers)
+        / NULLIF(prev_month_customers, 0) * 100::NUMERIC, 1) AS customer_volume_mom_pct,
+    ROUND((avg_basket_size - prev_basket_size)
+        / NULLIF(prev_basket_size, 0) * 100:: NUMERIC, 1) AS basket_size_mom_pct,
+    CASE
+        WHEN (total_customers - prev_month_customers) / NULLIF(prev_month_customers, 0)
+           > (avg_basket_size - prev_basket_size) / NULLIF(prev_basket_size, 0)
+        THEN 'Volume-driven'
+        WHEN (avg_basket_size - prev_basket_size) / NULLIF(prev_basket_size, 0) > 0
+        THEN 'Basket-driven'
+        ELSE 'Declining or mixed'
+    END AS growth_driver
+FROM trend
+WHERE month IS NOT NULL
+ORDER BY month;
+
+
+-- Store type × Assortment Performance Matrix
+-- Which store type and assortment combination drives the highest average daily sales?
+-- Ranks each combination overall and within its store type.
+WITH combination_metrics AS (
+    SELECT
+        st.storetype,
+        st.assortment,
+        COUNT(DISTINCT s.store) AS store_count,
+        ROUND(AVG(s.sales)::NUMERIC, 2) AS avg_daily_sales,
+        ROUND(AVG(s.customers)::NUMERIC, 0)                      AS avg_daily_customers,
+        ROUND(AVG(s.sales / NULLIF(s.customers, 0))::NUMERIC, 2) AS avg_basket_size,
+        ROUND(AVG(s.sales) FILTER (WHERE s.promo = 1)
+            / NULLIF(AVG(s.sales) FILTER (WHERE s.promo = 0), 0), 3) AS promo_multiplier
+    FROM rossmann_sales s
+    JOIN rossmann_store st ON s.store = st.store
+    WHERE s.open = 1
+    GROUP BY st.storetype, st.assortment
+)
+SELECT
+    storetype,
+    assortment,
+    CASE assortment
+        WHEN 'a' THEN 'Basic'
+        WHEN 'b' THEN 'Extra'
+        WHEN 'c' THEN 'Extended'
+    END AS assortment_label,
+    store_count,
+    avg_daily_sales,
+    avg_daily_customers,
+    avg_basket_size,
+    promo_multiplier,
+    ROW_NUMBER() OVER (ORDER BY avg_daily_sales DESC) AS overall_rank,
+    ROW_NUMBER() OVER (PARTITION BY storetype ORDER BY avg_daily_sales DESC) AS rank_within_type,
+    ROUND(avg_daily_sales / SUM(avg_daily_sales) OVER () * 100, 2)  AS pct_of_total_avg_sales
+FROM combination_metrics
+ORDER BY avg_daily_sales DESC;
+
+
+
+--Pre/Post analysis - Impact of Competitor entry
+-- Does store revenue drop after a nearby competitor opens?
+-- Splits each store's history into four phases relative to competitor opening date.
+-- Only includes stores with a competitor within 3km and a known opening date.
+WITH stores_with_competition AS (
+    SELECT
+        store,
+        storetype,
+        assortment,
+        competitiondistance,
+        CASE
+            WHEN competitionopensincemonth IS NOT NULL
+             AND competitionopensinceyear  IS NOT NULL
+            THEN MAKE_DATE(
+                    competitionopensinceyear::INT,
+                    competitionopensincemonth::INT, 1 )
+            ELSE NULL
+        END AS competitor_open_date
+    FROM rossmann_store
+    WHERE competitionopensinceyear IS NOT NULL
+      AND competitiondistance <= 3000
+),
+sales_with_competitor_timing AS (
+    SELECT
+        s.store,
+        s.date,
+        s.sales,
+        s.customers,
+        sc.competitor_open_date,
+        sc.competitiondistance,
+        sc.storetype,
+        CASE
+            WHEN s.date::DATE < sc.competitor_open_date - INTERVAL '6 months'
+                THEN 'Pre-competition (>6m before)'
+            WHEN s.date::DATE < sc.competitor_open_date
+                THEN 'Pre-competition (<6m before)'
+            WHEN s.date::DATE < sc.competitor_open_date + INTERVAL '6 months'
+                THEN 'Post-competition (<6m after)'
+            ELSE
+                'Post-competition (>6m after)'
+        END AS competition_phase
+    FROM rossmann_sales s
+    JOIN stores_with_competition sc ON s.store = sc.store
+    WHERE s.open = 1
+)
+SELECT
+    competition_phase,
+    COUNT(DISTINCT store)                               AS stores_in_phase,
+    ROUND(AVG(sales), 2)                               AS avg_daily_sales_eur,
+    ROUND(AVG(customers), 0)                           AS avg_daily_customers,
+    ROUND(AVG(sales / NULLIF(customers, 0)), 2)        AS avg_basket_size,
+    COUNT(*)                                            AS observation_days
+FROM sales_with_competitor_timing
+GROUP BY competition_phase
+ORDER BY
+    CASE competition_phase
+        WHEN 'Pre-competition (>6m before)'  THEN 1
+        WHEN 'Pre-competition (<6m before)'  THEN 2
+        WHEN 'Post-competition (<6m after)'  THEN 3
+        WHEN 'Post-competition (>6m after)'  THEN 4
+    END;
