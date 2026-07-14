@@ -23,14 +23,12 @@ Sales analysis of 1,115 Rossmann drug stores in Germany: 2.5 years of daily data
 
 
 ## Why this project
-=======
 # Rossmann Retail Group - Store Performance Analytics
 ### Junior Data Analyst Portfolio Project
 
 > Transforming 844K sales records into actionable retail strategy for 1,115 stores across Germany.
 
 ---
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
 
 ## Project Brief
 
