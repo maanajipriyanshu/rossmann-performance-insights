@@ -327,4 +327,4 @@ jupyter notebook notebooks/
 
 *Dataset: Rossmann Store Sales, Kaggle (2015). Portfolio project, all findings are analytical interpretations of the public dataset.*
 
-*Connect: [LinkedIn](https://linkedin.com/in/maanapriyanshurajput) · [GitHub](https://github.com/maanajipriyanshu)*
+*Connect: [LinkedIn](https://linkedin.com/in/maanapriyanshurajput) · [GitHub](https://github.com/maanajipriyanshu) · [Portfolio](https://maanajipriyanshu.github.io/insights-by-priyanshu/)*
