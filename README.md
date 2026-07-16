@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# 🏪 Rossmann Retail Group — Store Performance Analytics
+# 🏪 Rossmann Retail Group - Store Performance Analytics
 ### Strategic Analysis | Junior Data Analyst Portfolio Project
 
 > *"Transforming 844K sales records into actionable retail strategy for 1,115 stores across Germany."*
@@ -7,7 +6,7 @@
 ---
 
 ## 📋 Project Brief
-Sales analysis of 1,115 Rossmann drug stores in Germany: 2.5 years of daily data, about 1.02M records. Started with four questions — which stores perform best, whether promotions actually work, what seasonal patterns exist, how store format affects revenue — and went further from there into store-level performance segmentation and promo ROI by store type.
+Sales analysis of 1,115 Rossmann drug stores in Germany: 2.5 years of daily data, about 1.02M records. Started with four questions - which stores perform best, whether promotions actually work, what seasonal patterns exist, how store format affects revenue - and went further from there into store-level performance segmentation and promo ROI by store type.
 
 | | |
 |---|---|
@@ -23,14 +22,12 @@ Sales analysis of 1,115 Rossmann drug stores in Germany: 2.5 years of daily data
 
 
 ## Why this project
-=======
 # Rossmann Retail Group - Store Performance Analytics
 ### Junior Data Analyst Portfolio Project
 
 > Transforming 844K sales records into actionable retail strategy for 1,115 stores across Germany.
 
 ---
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
 
 ## Project Brief
 
@@ -68,7 +65,7 @@ Most public Rossmann notebooks stop at "here's a chart." This one goes further: 
 ---
 
 
-<<<<<<< HEAD
+
 ## 🎯 Business Problems Solved
 
 This project was structured around 8 real business questions that a retail analytics team would receive from leadership:
@@ -161,8 +158,6 @@ The chain's growth lever is not the top 10 stores. It is the 630+ stores sitting
 ---
 
 ---
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
-
 | # | Business Question | Analysis Type |
 |---|---|---|
 | 1 | Which stores are consistently underperforming? | Multi-period NTILE ranking + intervention scoring |
@@ -178,27 +173,27 @@ The chain's growth lever is not the top 10 stores. It is the 630+ stores sitting
 
 ## 📊 Key Business Findings
 
-### Finding 1 — Promotions Drive 31% Revenue Lift, But Effectiveness Varies Significantly
+### Finding 1 - Promotions Drive 31% Revenue Lift, But Effectiveness Varies Significantly
 
-Promotions increased average daily sales from €5,900 to €7,700 portfolio-wide — a **31% revenue lift**. However, the effect varies dramatically by store configuration:
+Promotions increased average daily sales from €5,900 to €7,700 portfolio-wide - a **31% revenue lift**. However, the effect varies dramatically by store configuration:
 
 - **Store Type b** sees only 18% lift (already at high baseline)
-- **Store Type a with Extended Assortment** sees **47% lift** — highest promo responsiveness
+- **Store Type a with Extended Assortment** sees **47% lift** - highest promo responsiveness
 - **Insight**: Promo budget should be reweighted toward Type a / Assortment c stores where the incremental return is highest
 
-### Finding 2 — 127 Stores Are Chronically in the Bottom Quartile
+### Finding 2 - 127 Stores Are Chronically in the Bottom Quartile
 
 Using quarterly NTILE() rankings across all 10 quarters of data, **127 stores** (11.4% of portfolio) landed in the bottom revenue quartile in 6+ of 10 quarters. These stores share a pattern: higher-than-average competition proximity (< 800m), smaller footprint (Type a), and basic assortment. Root cause: product mismatch, not location.
 
-### Finding 3 — Competitor Proximity Has a Counterintuitive Effect
+### Finding 3 - Competitor Proximity Has a Counterintuitive Effect
 
-Stores with competition within 500m generate **€7,940 average daily sales** vs €6,540 for stores with competition 3km–10km away. **High-competition zones correlate with higher footfall areas** — Rossmann stores perform better in dense retail corridors than in isolated locations.
+Stores with competition within 500m generate **€7,940 average daily sales** vs €6,540 for stores with competition 3km–10km away. **High-competition zones correlate with higher footfall areas** - Rossmann stores perform better in dense retail corridors than in isolated locations.
 
-### Finding 4 — December is 49% Above Annual Average, But July Is the Trough
+### Finding 4 - December is 49% Above Annual Average, But July Is the Trough
 
 Seasonality is extreme. December peaks at €8,850 average daily sales. July drops to €5,610. Staff deployment, inventory procurement, and promo calendars are not adequately aligned to this pattern in 23% of underperforming stores.
 
-### Finding 5 — Store Type b Generates 2.1× the Revenue of Type a Stores
+### Finding 5 - Store Type b Generates 2.1× the Revenue of Type a Stores
 
 Across all assortment types, Type b stores outperform on every KPI. Average basket size is **€8.80 vs €6.20** for Type a stores. Type b with Extended assortment is the highest-performing configuration in the portfolio.
 
@@ -208,7 +203,6 @@ Across all assortment types, Type b stores outperform on every KPI. Average bask
 
 ```
 rossmann-performance-insights/
-<<<<<<< HEAD
 │
 ├── 📁 sql/
 │   └── rossmann_advanced_analysis.sql       # 15 advanced business queries
@@ -271,11 +265,10 @@ rossmann-performance-insights/
 ```
 
 ---
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
 
 ## 💻 Advanced SQL Techniques Used
 
-<<<<<<< HEAD
+
 | Technique | Query # | Business Application |
 |---|---|---|
 | `NTILE(4)` | Q02, Q08 | Portfolio quartile segmentation |
@@ -292,18 +285,18 @@ rossmann-performance-insights/
 
 ---
 
-## 📱 Power BI Dashboard — 4-Page Design
+## 📱 Power BI Dashboard - 4-Page Design
 
-### Page 1 — Executive Summary
+### Page 1 - Executive Summary
 KPI cards (Total Revenue, Avg Daily Sales, Portfolio Growth YoY, Active Stores, Avg Basket Size) · Revenue trend line (2013–2015) · Store tier donut chart · Top 10 / Bottom 10 store table
 
-### Page 2 — Store Performance Analysis
+### Page 2 - Store Performance Analysis
 Store-level scatter plot (Revenue vs Growth) · Quartile heatmap matrix · Underperforming stores ranked table with intervention flags · YoY growth by store type bar chart
 
-### Page 3 — Promotion & Competition Impact
+### Page 3 - Promotion & Competition Impact
 Promo lift waterfall by store type and assortment · Competition distance revenue band chart · Promo2 vs no-Promo2 side-by-side comparison · Seasonality bar chart with holiday overlay
 
-### Page 4 — Growth Opportunities & Recommendations
+### Page 4 - Growth Opportunities & Recommendations
 Expansion score bubble chart (bubble = avg daily sales) · Top 20 priority stores ranked table · Investment signal matrix by store type × assortment · Competitor entry impact cohort chart
 
 ---
@@ -497,33 +490,32 @@ COUNTROWS(
         [Avg Daily Sales] >= 15000
     )
 )
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
 ```
 
 ---
 
-<<<<<<< HEAD
+
 ## 📝 Business Recommendations
 
-### Recommendation 1 — Reallocate Promo Budget to High-Uplift Store Segments
+### Recommendation 1 - Reallocate Promo Budget to High-Uplift Store Segments
 **Problem**: Promo spend is distributed evenly across store types despite significantly different effectiveness.
 **Finding**: Type a stores with Extended assortment show 47% promo lift vs 18% for Type b stores.
 **Action**: Increase promo frequency in Type a / Assortment c stores by 2 additional days/month.
 **Expected Impact**: +€2.1M incremental annual revenue assuming 80 qualifying stores respond at modeled rate.
 
-### Recommendation 2 — Implement Quarterly Performance Review Triggers for 127 Chronic Underperformers
+### Recommendation 2 - Implement Quarterly Performance Review Triggers for 127 Chronic Underperformers
 **Problem**: 127 stores have been in the bottom quartile for 6+ of 10 quarters with no structured intervention.
 **Finding**: These stores share a product-assortment mismatch pattern, not location problems.
 **Action**: Pilot assortment upgrade (Basic → Extended) in bottom 20 stores. Review after 2 quarters.
 **Expected Impact**: If successful, €450K–€800K incremental annual revenue per store based on assortment benchmark gap.
 
-### Recommendation 3 — Revise Site Selection Criteria for New Openings
+### Recommendation 3 - Revise Site Selection Criteria for New Openings
 **Problem**: Current site selection avoids areas with nearby competition.
 **Finding**: Stores in high-competition zones (< 500m) generate 21% more revenue than isolated stores.
 **Action**: Prioritize high-footfall retail corridors over low-competition suburban locations.
 **Expected Impact**: +15–20% average revenue per new store opening vs current baseline.
 
-### Recommendation 4 — Build Seasonal Staffing Model Aligned to Revenue Index
+### Recommendation 4 - Build Seasonal Staffing Model Aligned to Revenue Index
 **Problem**: 23% of underperforming stores show abnormal December-July variance suggesting operational unreadiness.
 **Finding**: December is 49% above annual average; July is 18% below. Current staffing models are not calibrated.
 **Action**: Build automated staffing recommendation using monthly seasonality index from this analysis.
@@ -577,7 +569,6 @@ December runs 30% above annual average. July runs below. Decisions based on annu
 ---
 
 ## How to Reproduce
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
 
 ```bash
 # 1. Clone the repository
@@ -612,12 +603,11 @@ jupyter notebook notebooks/
 
 # 6. Open Power BI dashboard
 # Dashboard/rossmann_sales_analysis.pbix
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
 ```
 
 ---
 
-<<<<<<< HEAD
+
 ## 📫 About the Analyst
 
 This project was built as part of a professional data analytics portfolio, simulating the kind of analysis performed by a Junior Data Analyst in a German retail analytics team. All business findings, recommendations, and KPIs are derived from the actual Rossmann dataset.
@@ -626,9 +616,9 @@ This project was built as part of a professional data analytics portfolio, simul
 
 ---
 
-*Dataset: Rossmann Store Sales — Kaggle Competition (2015)*
+*Dataset: Rossmann Store Sales - Kaggle Competition (2015)*
 *This is a portfolio project for learning purposes. All business insights are analytical interpretations of the public dataset.*
-[Rossmann Store Sales](https://www.kaggle.com/c/rossmann-store-sales) — Kaggle.
+[Rossmann Store Sales](https://www.kaggle.com/c/rossmann-store-sales) - Kaggle.
 =======
 ## Tech Stack
 
@@ -646,4 +636,3 @@ This project was built as part of a professional data analytics portfolio, simul
 *Dataset: Rossmann Store Sales, Kaggle (2015). Portfolio project, all findings are analytical interpretations of the public dataset.*
 
 *Connect: [LinkedIn](https://linkedin.com/in/maanapriyanshurajput) · [GitHub](https://github.com/maanajipriyanshu)*
->>>>>>> 7d6c75b76e22c380de06a2505bd522e3e88bb6a9
